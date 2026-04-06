@@ -4,12 +4,14 @@ Version: 0.1.0
 Summary: Keyboard Familiar Harness modular runtime
 Requires-Python: >=3.12
 Description-Content-Type: text/markdown
+License-File: LICENSE
 Requires-Dist: pydantic>=2.7
 Requires-Dist: typer>=0.12
 Requires-Dist: pyyaml>=6.0
 Provides-Extra: dev
 Requires-Dist: pytest>=8.0; extra == "dev"
 Requires-Dist: pytest-asyncio>=0.23; extra == "dev"
+Dynamic: license-file
 
 # Keyboard Familiar Harness (v1 skeleton)
 
@@ -19,8 +21,18 @@ A debug-first modular monolith for event -> state -> decision -> directive -> su
 
 ```bash
 pip install -e .[dev]
+familiar trigger test.ping --source manual --message "hello"
+familiar state show
+familiar trace tail --lines 20
+```
+
+## Runtime mode
+
+`familiar run` starts a long-running loop and keeps the harness process alive until `Ctrl+C`.
+
+For quick terminal proof without running a daemon, `trigger` persists state/trace to
+`.familiar/runtime.json`, and `state show` / `trace tail` read from the same file.
 familiar run
 familiar trigger test.ping --source manual
 familiar state show
 familiar trace tail --lines 20
-```
