@@ -1,0 +1,11 @@
+scenes:
+  GLANCE:
+    dwell_ms: 10000
+  ALERT:
+    dwell_ms: 15000
+    preempts: [GLANCE, ART]
+  INSPECT:
+    dwell_ms: 30000
+  ART:
+    dwell_ms: 120000
+    only_when_idle: true

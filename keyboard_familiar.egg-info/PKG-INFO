@@ -1,0 +1,26 @@
+Metadata-Version: 2.4
+Name: keyboard-familiar
+Version: 0.1.0
+Summary: Keyboard Familiar Harness modular runtime
+Requires-Python: >=3.12
+Description-Content-Type: text/markdown
+Requires-Dist: pydantic>=2.7
+Requires-Dist: typer>=0.12
+Requires-Dist: pyyaml>=6.0
+Provides-Extra: dev
+Requires-Dist: pytest>=8.0; extra == "dev"
+Requires-Dist: pytest-asyncio>=0.23; extra == "dev"
+
+# Keyboard Familiar Harness (v1 skeleton)
+
+A debug-first modular monolith for event -> state -> decision -> directive -> surface pipelines.
+
+## Quickstart
+
+```bash
+pip install -e .[dev]
+familiar run
+familiar trigger test.ping --source manual
+familiar state show
+familiar trace tail --lines 20
+```

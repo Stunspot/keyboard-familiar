@@ -1,0 +1,13 @@
+plugins:
+  manual_trigger:
+    enabled: true
+  timer:
+    enabled: false
+    every_seconds: 30
+  rules_basic:
+    enabled: true
+  console_debug:
+    enabled: true
+  steelseries_oled:
+    enabled: true
+    target: primary_surface

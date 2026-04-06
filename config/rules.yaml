@@ -1,0 +1,18 @@
+rules:
+  - name: build_failed_alert
+    when:
+      event_type: build.failed
+    emit:
+      kind: display.card
+      target: primary_surface
+      importance: 0.95
+      requested_scene: ALERT
+      ttl_ms: 15000
+  - name: timer_glance
+    when:
+      event_type: timer.tick
+    emit:
+      kind: display.text
+      target: primary_surface
+      importance: 0.20
+      requested_scene: GLANCE
