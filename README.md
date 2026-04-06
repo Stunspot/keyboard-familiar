@@ -21,4 +21,3 @@ familiar run
 familiar trigger test.ping --source manual
 familiar state show
 familiar trace tail --lines 20
-```
