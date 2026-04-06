@@ -20,6 +20,7 @@ familiar/plugins/manager.py
 familiar/plugins/brains/__init__.py
 familiar/plugins/brains/rules_basic.py
 familiar/plugins/sensors/__init__.py
+familiar/plugins/sensors/gpu_vram.py
 familiar/plugins/sensors/manual_trigger.py
 familiar/plugins/sensors/timer.py
 familiar/plugins/surfaces/__init__.py
