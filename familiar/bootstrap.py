@@ -12,6 +12,7 @@ from familiar.core.scenes import SceneManager
 from familiar.core.state import InMemoryStateStore
 from familiar.plugins.brains.rules_basic import RulesBasicBrain
 from familiar.plugins.manager import PluginManager
+from familiar.plugins.sensors.gpu_vram import GpuVramSensor
 from familiar.plugins.sensors.manual_trigger import ManualTriggerSensor
 from familiar.plugins.sensors.timer import TimerSensor
 from familiar.plugins.surfaces.console_debug import ConsoleDebugSurface
@@ -26,7 +27,6 @@ def _as_int(value: object, default: int) -> int:
 
 
 async def create_app(config_dir: Path, runtime_file: Path | None = None) -> FamiliarApp:
-async def create_app(config_dir: Path) -> FamiliarApp:
     config = load_config_dir(config_dir)
     plugins_cfg = config.get("plugins", {}).get("plugins", {})
     arbitration_cfg = config.get("app", {}).get("arbitration", {})
@@ -34,16 +34,33 @@ async def create_app(config_dir: Path) -> FamiliarApp:
     bus = InMemoryEventBus()
     state = InMemoryStateStore()
     scene_manager = SceneManager(dwell_ms=_as_int(arbitration_cfg.get("min_dwell_ms", 5000), 5000))
-    arbitrator = Arbitrator(scene_manager, dedupe_window_ms=_as_int(arbitration_cfg.get("dedupe_window_ms", 30000), 30000))
+    arbitrator = Arbitrator(
+        scene_manager,
+        dedupe_window_ms=_as_int(arbitration_cfg.get("dedupe_window_ms", 30000), 30000),
+    )
 
     sensors = {"manual_trigger": ManualTriggerSensor()}
+
+    gpu_cfg = plugins_cfg.get("gpu_vram", {})
+    if str(gpu_cfg.get("enabled", "false")).lower() != "false":
+        sensors["gpu_vram"] = GpuVramSensor(
+            every_seconds=_as_int(gpu_cfg.get("every_seconds", 3), 3),
+            gpu_index=_as_int(gpu_cfg.get("gpu_index", 0), 0),
+            change_threshold_pct=float(gpu_cfg.get("change_threshold_pct", 2.0)),
+            alert_threshold_pct=float(gpu_cfg.get("alert_threshold_pct", 90.0)),
+        )
     if str(plugins_cfg.get("timer", {}).get("enabled", "true")).lower() != "false":
-        sensors["timer"] = TimerSensor(every_seconds=_as_int(plugins_cfg.get("timer", {}).get("every_seconds", 30), 30))
+        sensors["timer"] = TimerSensor(
+            every_seconds=_as_int(plugins_cfg.get("timer", {}).get("every_seconds", 30), 30)
+        )
 
     manager = PluginManager(
         sensors=sensors,
         brains={"rules_basic": RulesBasicBrain()},
-        surfaces={"console_debug": ConsoleDebugSurface(), "primary_surface": SteelSeriesOledSurface(dry_run=True)},
+        surfaces={
+            "console_debug": ConsoleDebugSurface(),
+            "primary_surface": SteelSeriesOledSurface(dry_run=True),
+        },
     )
     router = Router(manager.surfaces)
 
@@ -57,7 +74,6 @@ async def create_app(config_dir: Path) -> FamiliarApp:
         runtime_file=runtime_file,
     )
     app.load_runtime()
-    app = FamiliarApp(bus=bus, state=state, plugins=manager, scene_manager=scene_manager, arbitrator=arbitrator, router=router)
     await manager.start_all(app)
     return app
 
@@ -67,4 +83,3 @@ async def run_app(app: FamiliarApp) -> None:
     app.save_runtime()
     while True:
         await asyncio.sleep(1)
-    app.trace.append("app running")

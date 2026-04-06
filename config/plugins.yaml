@@ -4,6 +4,12 @@ plugins:
   timer:
     enabled: false
     every_seconds: 30
+  gpu_vram:
+    enabled: false
+    every_seconds: 3
+    gpu_index: 0
+    change_threshold_pct: 2.0
+    alert_threshold_pct: 90.0
   rules_basic:
     enabled: true
   console_debug:
