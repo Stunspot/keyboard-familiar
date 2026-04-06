@@ -30,7 +30,6 @@ class RulesBasicBrain:
                 merge_strategy="replace",
                 source_event_id=event.id,
             ),
-            )
         ]
 
         proposals: list[DirectiveProposal] = []
