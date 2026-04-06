@@ -12,6 +12,7 @@ from familiar.core.scenes import SceneManager
 from familiar.core.state import InMemoryStateStore
 from familiar.plugins.brains.rules_basic import RulesBasicBrain
 from familiar.plugins.manager import PluginManager
+from familiar.plugins.sensors.gpu_vram import GpuVramSensor
 from familiar.plugins.sensors.manual_trigger import ManualTriggerSensor
 from familiar.plugins.sensors.timer import TimerSensor
 from familiar.plugins.surfaces.console_debug import ConsoleDebugSurface
@@ -39,6 +40,15 @@ async def create_app(config_dir: Path, runtime_file: Path | None = None) -> Fami
     )
 
     sensors = {"manual_trigger": ManualTriggerSensor()}
+
+    gpu_cfg = plugins_cfg.get("gpu_vram", {})
+    if str(gpu_cfg.get("enabled", "false")).lower() != "false":
+        sensors["gpu_vram"] = GpuVramSensor(
+            every_seconds=_as_int(gpu_cfg.get("every_seconds", 3), 3),
+            gpu_index=_as_int(gpu_cfg.get("gpu_index", 0), 0),
+            change_threshold_pct=float(gpu_cfg.get("change_threshold_pct", 2.0)),
+            alert_threshold_pct=float(gpu_cfg.get("alert_threshold_pct", 90.0)),
+        )
     if str(plugins_cfg.get("timer", {}).get("enabled", "true")).lower() != "false":
         sensors["timer"] = TimerSensor(
             every_seconds=_as_int(plugins_cfg.get("timer", {}).get("every_seconds", 30), 30)

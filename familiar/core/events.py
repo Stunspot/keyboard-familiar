@@ -5,7 +5,7 @@ from typing import Any
 
 from .models import Event
 
-_EVENT_PATTERN = re.compile(r"^[a-z0-9_]+[.][a-z0-9_]+$")
+_EVENT_PATTERN = re.compile(r"^[a-z0-9_]+(?:[.][a-z0-9_]+)+$")
 
 
 def validate_event_type(event_type: str) -> bool:
