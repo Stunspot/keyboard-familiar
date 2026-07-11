@@ -5,7 +5,7 @@ from familiar.adapters.steelseries.transport import RecordingSteelSeriesTranspor
 from familiar.bootstrap import create_app
 
 
-def test_manual_event_reaches_debug_and_explicit_oled_substitute() -> None:
+def test_manual_event_reaches_debug_and_explicit_device_substitute() -> None:
     async def _run() -> None:
         transport = RecordingSteelSeriesTransport()
         app = await create_app(

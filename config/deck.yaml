@@ -1,0 +1,13 @@
+deck:
+  interval_seconds: 15
+  cards:
+    - source: clock
+      title: NOW
+      time_format: "%a %I:%M %p"
+    - source: system
+      title: SYSTEM PULSE
+    - source: focus
+      title: FOCUS
+
+focus:
+  default_minutes: 25

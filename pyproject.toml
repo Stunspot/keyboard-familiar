@@ -5,11 +5,12 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "keyboard-familiar"
 version = "0.1.0"
-description = "Show NVIDIA VRAM status and alerts on SteelSeries OLED devices"
+description = "A quiet glance deck and alert layer for SteelSeries keyboards"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
   "nvidia-ml-py>=12.0",
+  "psutil>=6.0",
   "typer>=0.12",
   "pyyaml>=6.0",
 ]

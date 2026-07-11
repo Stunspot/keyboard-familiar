@@ -4,6 +4,8 @@ plugins:
   timer:
     enabled: false
     every_seconds: 30
+  glance_deck:
+    enabled: true
   gpu_vram:
     enabled: true
     every_seconds: 3
@@ -14,8 +16,9 @@ plugins:
     enabled: true
   console_debug:
     enabled: true
-  steelseries_oled:
+  steelseries:
     enabled: true
-    target: primary_surface
     mode: gamesense
+    capabilities: [screen, function_key_lighting]
+    alert_color: [255, 64, 32]
     timeout_seconds: 2.0

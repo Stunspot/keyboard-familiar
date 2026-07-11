@@ -1,11 +1,14 @@
 from __future__ import annotations
 
 import json
+import os
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
 from familiar.core.arbitration import Arbitrator
 from familiar.core.bus import InMemoryEventBus
+from familiar.core.focus import FocusStore
+from familiar.core.glance import GlanceDeck
 from familiar.core.models import BrainResult, Directive, Event, RenderResult, StatePatch, StateSnapshot
 from familiar.core.routing import Router
 from familiar.core.scenes import SceneManager
@@ -23,6 +26,8 @@ class FamiliarApp:
     router: Router
     trace: list[str] = field(default_factory=list)
     runtime_file: Path | None = None
+    focus_store: FocusStore | None = None
+    glance_deck: GlanceDeck | None = None
 
     def load_runtime(self) -> None:
         if not self.runtime_file or not self.runtime_file.exists():
@@ -46,7 +51,7 @@ class FamiliarApp:
             "trace": self.trace[-500:],
             "state": asdict(self.state.get_snapshot()),
         }
-        temporary = self.runtime_file.with_suffix(f"{self.runtime_file.suffix}.tmp")
+        temporary = self.runtime_file.with_suffix(f"{self.runtime_file.suffix}.{os.getpid()}.tmp")
         temporary.write_text(json.dumps(payload, default=str, indent=2), encoding="utf-8")
         temporary.replace(self.runtime_file)
 

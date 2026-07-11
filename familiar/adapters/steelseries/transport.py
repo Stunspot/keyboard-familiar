@@ -12,7 +12,11 @@ from urllib.parse import urlsplit
 from urllib.request import Request, urlopen
 
 GAME_ID = "KEYBOARD_FAMILIAR"
-EVENT_ID = "DISPLAY"
+SIGNAL_GAME_ID = "KEYBOARD_FAMILIAR_ALERTS"
+GLANCE_EVENT_ID = "GLANCE"
+ALERT_EVENT_ID = "ALERT"
+SIGNAL_EVENT_ID = "SIGNAL"
+SUPPORTED_CAPABILITIES = frozenset({"screen", "function_key_lighting"})
 
 
 class SteelSeriesError(RuntimeError):
@@ -20,17 +24,24 @@ class SteelSeriesError(RuntimeError):
 
 
 @dataclass(frozen=True)
-class ScreenFrame:
+class DeviceFrame:
     title: str
     body: str
+    alert: bool = False
+    signal_color: tuple[int, int, int] = (255, 64, 32)
+
+
+# Compatibility for integrations that imported the MVP name.
+ScreenFrame = DeviceFrame
 
 
 class SteelSeriesTransport(Protocol):
     mode: str
+    capabilities: frozenset[str]
 
     async def initialize(self) -> None: ...
 
-    async def send_frame(self, frame: ScreenFrame) -> None: ...
+    async def send_frame(self, frame: DeviceFrame) -> None: ...
 
     async def heartbeat(self) -> None: ...
 
@@ -40,17 +51,22 @@ class RecordingSteelSeriesTransport:
 
     mode = "simulate"
 
-    def __init__(self) -> None:
+    def __init__(self, capabilities: frozenset[str] = SUPPORTED_CAPABILITIES) -> None:
+        self.capabilities = capabilities
         self.initialized = False
-        self.frames: list[ScreenFrame] = []
+        self.frames: list[DeviceFrame] = []
         self.heartbeat_count = 0
 
     async def initialize(self) -> None:
         self.initialized = True
 
-    async def send_frame(self, frame: ScreenFrame) -> None:
+    async def send_frame(self, frame: DeviceFrame) -> None:
         if not self.initialized:
             await self.initialize()
+        if not frame.alert and "screen" not in self.capabilities:
+            raise SteelSeriesError(
+                "This message needs the configured `screen` capability. Use --alert for lighting-only hardware."
+            )
         self.frames.append(frame)
 
     async def heartbeat(self) -> None:
@@ -58,13 +74,22 @@ class RecordingSteelSeriesTransport:
 
 
 class GameSenseTransport:
-    """SteelSeries GG GameSense HTTP adapter for a local screened device."""
+    """SteelSeries GG GameSense adapter for screened and illuminated keyboards."""
 
     mode = "gamesense"
 
-    def __init__(self, core_props_path: Path | None = None, timeout_seconds: float = 2.0) -> None:
+    def __init__(
+        self,
+        core_props_path: Path | None = None,
+        timeout_seconds: float = 2.0,
+        capabilities: frozenset[str] = SUPPORTED_CAPABILITIES,
+    ) -> None:
+        unknown = capabilities - SUPPORTED_CAPABILITIES
+        if unknown or not capabilities:
+            raise ValueError(f"Invalid SteelSeries capabilities: {sorted(unknown or capabilities)}")
         self.core_props_path = core_props_path or self.default_core_props_path()
         self.timeout_seconds = timeout_seconds
+        self.capabilities = capabilities
         self.base_url: str | None = None
         self.initialized = False
 
@@ -116,51 +141,107 @@ class GameSenseTransport:
         if self.initialized:
             return
         self.base_url = self.discover()
+        if "screen" in self.capabilities:
+            await self._metadata(GAME_ID, "Keyboard Familiar")
+            await self._bind_event(GLANCE_EVENT_ID, [self._screen_handler()])
+            await self._bind_event(ALERT_EVENT_ID, [self._screen_handler()])
+        if "function_key_lighting" in self.capabilities:
+            await self._metadata(SIGNAL_GAME_ID, "Keyboard Familiar Alerts")
+            await self._bind_event(
+                SIGNAL_EVENT_ID,
+                [self._lighting_handler()],
+                game=SIGNAL_GAME_ID,
+            )
+        self.initialized = True
+
+    async def send_frame(self, frame: DeviceFrame) -> None:
+        if not frame.alert and "screen" not in self.capabilities:
+            raise SteelSeriesError(
+                "This message needs the configured `screen` capability. Use --alert for lighting-only hardware."
+            )
+        await self.initialize()
+        red, green, blue = frame.signal_color
+        context = {
+            "title": frame.title,
+            "body": frame.body,
+            "signal-color": {"red": red, "green": green, "blue": blue},
+        }
+        if "screen" in self.capabilities:
+            await self._post(
+                "game_event",
+                {
+                    "game": GAME_ID,
+                    "event": ALERT_EVENT_ID if frame.alert else GLANCE_EVENT_ID,
+                    "data": {
+                        "value": 100 if frame.alert else 0,
+                        "frame": context,
+                    },
+                },
+            )
+        if frame.alert and "function_key_lighting" in self.capabilities:
+            await self._post(
+                "game_event",
+                {
+                    "game": SIGNAL_GAME_ID,
+                    "event": SIGNAL_EVENT_ID,
+                    "data": {"value": 100, "frame": context},
+                },
+            )
+
+    async def heartbeat(self) -> None:
+        if self.initialized and "screen" in self.capabilities:
+            await self._post("game_heartbeat", {"game": GAME_ID})
+
+    async def _metadata(self, game: str, display_name: str) -> None:
         await self._post(
             "game_metadata",
-            {"game": GAME_ID, "game_display_name": "Keyboard Familiar", "developer": "Keyboard Familiar"},
+            {"game": game, "game_display_name": display_name, "developer": "Keyboard Familiar"},
         )
+
+    async def _bind_event(
+        self,
+        event: str,
+        handlers: list[dict[str, Any]],
+        *,
+        game: str = GAME_ID,
+    ) -> None:
         await self._post(
             "bind_game_event",
             {
-                "game": GAME_ID,
-                "event": EVENT_ID,
+                "game": game,
+                "event": event,
                 "min_value": 0,
                 "max_value": 100,
                 "value_optional": True,
-                "handlers": [
-                    {
-                        "device-type": "screened",
-                        "zone": "one",
-                        "mode": "screen",
-                        "datas": [
-                            {
-                                "lines": [
-                                    {"has-text": True, "context-frame-key": "title", "bold": True},
-                                    {"has-text": True, "context-frame-key": "body", "wrap": 1},
-                                ]
-                            }
-                        ],
-                    }
-                ],
-            },
-        )
-        self.initialized = True
-
-    async def send_frame(self, frame: ScreenFrame) -> None:
-        await self.initialize()
-        await self._post(
-            "game_event",
-            {
-                "game": GAME_ID,
-                "event": EVENT_ID,
-                "data": {"value": 0, "frame": {"title": frame.title, "body": frame.body}},
+                "handlers": handlers,
             },
         )
 
-    async def heartbeat(self) -> None:
-        if self.initialized:
-            await self._post("game_heartbeat", {"game": GAME_ID})
+    @staticmethod
+    def _screen_handler() -> dict[str, Any]:
+        return {
+            "device-type": "screened",
+            "zone": "one",
+            "mode": "screen",
+            "datas": [
+                {
+                    "lines": [
+                        {"has-text": True, "context-frame-key": "title", "bold": True},
+                        {"has-text": True, "context-frame-key": "body", "wrap": 1},
+                    ]
+                }
+            ],
+        }
+
+    @staticmethod
+    def _lighting_handler() -> dict[str, Any]:
+        return {
+            "device-type": "keyboard",
+            "zone": "function-keys",
+            "mode": "context-color",
+            "context-frame-key": "signal-color",
+            "rate": {"frequency": 2},
+        }
 
     async def _post(self, endpoint: str, payload: dict[str, Any]) -> None:
         if self.base_url is None:
@@ -184,9 +265,12 @@ class GameSenseTransport:
                 f"SteelSeries GameSense rejected /{endpoint} with HTTP {exc.code}: {detail or exc.reason}"
             ) from exc
         except (URLError, TimeoutError, OSError) as exc:
+            self.initialized = False
+            failed_url = self.base_url
+            self.base_url = None
             raise SteelSeriesError(
-                f"Cannot reach SteelSeries GG Engine at {self.base_url}: {exc}. "
-                "Confirm GG and Engine are running, then run `familiar doctor`."
+                f"Cannot reach SteelSeries GG Engine at {failed_url}: {exc}. "
+                "The next card will rediscover GG; confirm Engine is running or run `familiar doctor`."
             ) from exc
         if status != 200:
             raise SteelSeriesError(f"SteelSeries GameSense /{endpoint} returned unexpected HTTP {status}.")

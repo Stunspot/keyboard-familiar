@@ -41,3 +41,8 @@ class SceneManager:
         return datetime.now(timezone.utc) < self._dwell_until.get(
             surface, datetime.min.replace(tzinfo=timezone.utc)
         )
+
+    def clear(self) -> None:
+        """Release transient ownership, primarily for explicit previews and recovery."""
+        self._owners.clear()
+        self._dwell_until.clear()

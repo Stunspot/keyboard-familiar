@@ -29,9 +29,11 @@ def load_config_dir(config_dir: Path) -> dict[str, Any]:
         raise ConfigurationError(
             f"Configuration directory not found: {config_dir}. Run from the repository root or pass --config-dir."
         )
+    deck_path = config_dir / "deck.yaml"
     return {
         "app": load_yaml(config_dir / "app.yaml"),
         "plugins": load_yaml(config_dir / "plugins.yaml"),
         "scenes": load_yaml(config_dir / "scenes.yaml"),
         "rules": load_yaml(config_dir / "rules.yaml"),
+        "deck": load_yaml(deck_path) if deck_path.exists() else {},
     }

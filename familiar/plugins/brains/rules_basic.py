@@ -35,7 +35,23 @@ class RulesBasicBrain:
         ]
 
         proposals: list[DirectiveProposal] = []
-        if event.type == "build.failed":
+        if event.type in {"deck.card", "focus.changed", "user.message"}:
+            proposals.append(self._card_proposal(event))
+            patches.append(
+                StatePatch(
+                    domain="deck",
+                    path="current",
+                    value={
+                        "source": event.payload.get("source", event.source),
+                        "title": event.payload.get("title", "Keyboard Familiar"),
+                        "body": event.payload.get("body", event.payload.get("message", "")),
+                        "alert": bool(event.payload.get("alert", False)),
+                    },
+                    merge_strategy="replace",
+                    source_event_id=event.id,
+                )
+            )
+        elif event.type == "build.failed":
             proposals.append(
                 DirectiveProposal(
                     proposer="rules_basic",
@@ -48,6 +64,7 @@ class RulesBasicBrain:
                     payload={
                         "title": event.payload.get("project", "BUILD FAILED"),
                         "subtitle": event.payload.get("summary", "Build failed"),
+                        "alert": True,
                     },
                     source_event_ids=[event.id],
                     reasons=["build.failed mapping"],
@@ -88,6 +105,7 @@ class RulesBasicBrain:
                         payload={
                             "title": f"VRAM {percent_used:.0f}%",
                             "subtitle": f"{used_gib:.1f}/{total_gib:.1f} GiB",
+                            "alert": True,
                         },
                         source_event_ids=[event.id],
                         reasons=["gpu vram threshold alert"],
@@ -123,3 +141,23 @@ class RulesBasicBrain:
             )
 
         return BrainResult(state_patches=patches, proposals=proposals)
+
+    @staticmethod
+    def _card_proposal(event: Event) -> DirectiveProposal:
+        alert = bool(event.payload.get("alert", False))
+        title = str(event.payload.get("title", "Keyboard Familiar"))
+        body = str(event.payload.get("body", event.payload.get("message", "")))
+        importance = float(event.payload.get("importance", 0.92 if alert else 0.30))
+        ttl_ms = int(event.payload.get("ttl_ms", 15_000 if alert else 12_000))
+        return DirectiveProposal(
+            proposer="rules_basic",
+            kind="display.card",
+            target="primary_surface",
+            importance=importance,
+            ttl_ms=ttl_ms,
+            requested_scene="ALERT" if alert else "GLANCE",
+            cooldown_key=event.payload.get("cooldown_key"),
+            payload={"title": title, "subtitle": body, "alert": alert},
+            source_event_ids=[event.id],
+            reasons=[f"{event.type} card"],
+        )

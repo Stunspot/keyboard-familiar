@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 
 from familiar.core.events import make_event
 from familiar.core.models import PluginManifest
@@ -24,6 +25,10 @@ class TimerSensor:
         self._running = False
         if self._task:
             self._task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await self._task
+        self._task = None
+        self._ctx = None
 
     async def _loop(self) -> None:
         while self._running and self._ctx:
