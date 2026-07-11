@@ -1,32 +1,181 @@
-# Keyboard Familiar Harness (v1 skeleton)
+# Keyboard Familiar
 
-A debug-first modular monolith for event -> state -> decision -> directive -> surface pipelines.
+Keyboard Familiar is a small Windows utility for NVIDIA and SteelSeries users. It monitors NVIDIA GPU
+VRAM usage, turns meaningful changes into glance or alert messages, and displays them on a compatible
+SteelSeries OLED through the local SteelSeries GG GameSense service. Every OLED message is also mirrored
+to an in-process debug surface, while recent state and trace data are written to `.familiar/runtime.json`.
 
-## Quickstart
+The MVP is intentionally narrow: one NVIDIA GPU sensor, deterministic VRAM rules, one SteelSeries OLED
+surface, a manual smoke-test event, persisted diagnostics, and an explicit hardware substitute. It does
+not control RGB lighting, discover cloud services, or require AI.
 
-```bash
-pip install -e .[dev]
-familiar trigger test.ping --source manual --message "hello"
-familiar state show
-familiar trace tail --lines 20
+## Requirements
+
+- Windows 10 or 11
+- Python 3.12 or newer
+- An NVIDIA GPU with a current driver (`nvidia-smi` should work)
+- [SteelSeries GG](https://steelseries.com/gg) running with Engine enabled
+- A SteelSeries device with a GameSense-compatible OLED screen
+
+The Python package installs NVIDIA's `nvidia-ml-py` bindings. If NVML cannot be used, Keyboard Familiar
+falls back to the `nvidia-smi` executable installed with the NVIDIA driver.
+
+The adapter follows SteelSeries' official [GameSense event API](https://github.com/SteelSeries/gamesense-sdk/blob/master/doc/api/sending-game-events.md)
+and [screen handler schema](https://github.com/SteelSeries/gamesense-sdk/blob/master/doc/api/json-handlers-screen.md).
+
+## Install from a clean checkout
+
+Open PowerShell in the repository root:
+
+```powershell
+py -3.12 -m venv .venv
+Set-ExecutionPolicy -Scope Process Bypass
+.\.venv\Scripts\Activate.ps1
+python -m pip install --upgrade pip
+python -m pip install -e ".[dev]"
+familiar --help
 ```
 
-## Runtime mode
+The checkout's `config` directory is the default configuration. Run commands from the repository root or
+pass `--config-dir PATH`.
 
-`familiar run` starts a long-running loop and keeps the harness process alive until `Ctrl+C`.
+## First run
 
-For quick terminal proof without running a daemon, `trigger` persists state/trace to
-`.familiar/runtime.json`, and `state show` / `trace tail` read from the same file.
+Start SteelSeries GG and confirm Engine is running, then:
 
-```bash
+```powershell
+familiar doctor
+familiar trigger test.ping --message "Keyboard Familiar OK"
 familiar run
-familiar trigger test.ping --source manual
-familiar state show
-familiar trace tail --lines 20
 ```
 
+`doctor` validates the YAML files, NVIDIA telemetry, SteelSeries discovery file, local GameSense endpoint,
+and GameSense event binding. The trigger is the real-hardware smoke test: the text must appear on the OLED.
+`run` then polls VRAM every three seconds until `Ctrl+C`. It shows a glance when usage changes by at least
+2 percentage points and an alert at or above 75%, using the defaults in `config/plugins.yaml`.
 
-## GPU VRAM sensor
+SteelSeries GG deactivates GameSense state after a short idle timeout, so long-running mode sends a
+keepalive every 10 seconds after the first display event.
 
-Enable `gpu_vram` in `config/plugins.yaml` to poll NVIDIA VRAM usage via NVML (`pynvml`) with `nvidia-smi` as fallback.
-The sensor emits `gpu.vram.changed` events when usage moves meaningfully or crosses the configured threshold, and `rules_basic` maps those to GLANCE/ALERT directives while persisting values under `domains.gpu.vram`.
+## Configuration
+
+Configuration is split into four required YAML files:
+
+| File | Purpose |
+| --- | --- |
+| `config/app.yaml` | runtime mirroring and arbitration timing |
+| `config/plugins.yaml` | enabled sensors/surfaces and their settings |
+| `config/rules.yaml` | documented rule examples retained for future rule loading |
+| `config/scenes.yaml` | documented scene timing retained for future scene loading |
+
+The supported MVP settings in `config/plugins.yaml` are:
+
+```yaml
+plugins:
+  manual_trigger:
+    enabled: true
+  timer:
+    enabled: false
+    every_seconds: 30
+  gpu_vram:
+    enabled: true
+    every_seconds: 3
+    gpu_index: 0
+    change_threshold_pct: 2.0
+    alert_threshold_pct: 75.0
+  rules_basic:
+    enabled: true
+  console_debug:
+    enabled: true
+  steelseries_oled:
+    enabled: true
+    target: primary_surface
+    mode: gamesense
+    timeout_seconds: 2.0
+```
+
+`steelseries_oled.mode` accepts `gamesense` or `simulate`. Keep `gamesense` for normal operation. The
+simulator is an explicit development boundary and never claims to contact hardware. Advanced diagnosis
+may set `core_props_path` to a specific `coreProps.json`; normal Windows installs should omit it so
+`%PROGRAMDATA%\SteelSeries\SteelSeries Engine 3\coreProps.json` is discovered automatically.
+
+## CLI
+
+```text
+familiar run                 Start continuous VRAM monitoring
+familiar doctor              Check configuration, GPU telemetry, and GameSense
+familiar trigger EVENT       Publish a manual event and require every render to succeed
+familiar state show          Print persisted state
+familiar trace tail          Print recent diagnostic trace entries
+familiar plugins list        List enabled plugins
+familiar surfaces list       List enabled surfaces
+familiar render dry-run      Exercise the full display pipeline without hardware
+```
+
+Use `familiar COMMAND --help` for option details. `--simulate` is available on `run`, `doctor`, and
+`trigger`. A production trigger exits nonzero if SteelSeries rendering fails; the event and failure remain
+in the trace for diagnosis.
+
+## Troubleshooting
+
+- **`coreProps.json was not found`** — install/start SteelSeries GG, open Engine, wait a few seconds, and
+  rerun `familiar doctor`.
+- **GameSense connection refused or timed out** — restart GG, confirm Engine is enabled, and rerun
+  `familiar doctor`. Keyboard Familiar accepts only the loopback address advertised by GG.
+- **Doctor succeeds but the OLED does not change** — open GG's Engine/Apps area, ensure Keyboard Familiar
+  is enabled, confirm the connected model has a supported screen, then repeat the real-hardware trigger.
+- **NVIDIA telemetry unavailable** — update the NVIDIA driver and run `nvidia-smi` in PowerShell. Set
+  `gpu_index` if the intended GPU is not index 0.
+- **Malformed or missing configuration** — use the file path in the error. YAML parse errors and invalid
+  numeric/boolean values are fatal rather than silently replaced with defaults.
+- **Inspect a recorded failure** — run `familiar trace tail --lines 50` and `familiar state show`.
+
+## Hardware substitute and verification boundary
+
+```powershell
+familiar doctor --simulate # OLED is simulated; NVIDIA telemetry is still checked
+familiar trigger test.ping --message "substitute check" --simulate
+familiar render dry-run
+```
+
+The substitute proves event creation, state updates, rule decisions, scene arbitration, directive routing,
+OLED text normalization, debug mirroring, persistence, and error propagation. Protocol tests also run the
+real adapter against a deterministic local HTTP server and verify GameSense metadata, binding, event, and
+heartbeat payloads.
+
+Those checks do **not** prove that SteelSeries GG recognizes a particular physical device, that its local
+firmware renders the handler, or that text is visually correct on every OLED resolution. GameSense returns
+success from Engine rather than a per-device delivery acknowledgement. Only this command, observed on the
+physical OLED, completes hardware verification:
+
+```powershell
+familiar doctor
+familiar trigger test.ping --message "Keyboard Familiar OK"
+```
+
+## Development checks
+
+From the activated virtual environment:
+
+```powershell
+python -m ruff format --check .
+python -m ruff check .
+python -m compileall -q familiar tests
+python -m pytest -q
+python -m build
+familiar doctor --simulate
+familiar render dry-run
+```
+
+CI runs the same lint, formatting, import, test, build, and simulated CLI checks on Windows and Linux.
+
+## Architecture and assumptions
+
+The existing modular-monolith contract is preserved: sensors publish events; a deterministic brain updates
+state and proposes directives; the arbitrator selects a scene; the router sends the directive to the
+SteelSeries surface and optional console mirror. AI remains optional and unused.
+
+`config/rules.yaml` and `config/scenes.yaml` are required and validated as YAML, but the current Python rule
+and scene implementations remain authoritative. Loading arbitrary YAML-defined rules/scenes is outside this
+MVP because the repository contains no schema or execution contract for them. This limitation is explicit
+instead of presenting those files as implemented behavior.
