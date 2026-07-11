@@ -27,7 +27,12 @@ class FamiliarApp:
     def load_runtime(self) -> None:
         if not self.runtime_file or not self.runtime_file.exists():
             return
-        data = json.loads(self.runtime_file.read_text(encoding="utf-8"))
+        try:
+            data = json.loads(self.runtime_file.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as exc:
+            raise ValueError(f"Cannot load runtime file {self.runtime_file}: {exc}") from exc
+        if not isinstance(data, dict):
+            raise ValueError(f"Runtime file must contain a JSON object: {self.runtime_file}")
         self.trace = list(data.get("trace", []))
         domains = data.get("state", {}).get("domains", {})
         if isinstance(domains, dict):
@@ -41,7 +46,9 @@ class FamiliarApp:
             "trace": self.trace[-500:],
             "state": asdict(self.state.get_snapshot()),
         }
-        self.runtime_file.write_text(json.dumps(payload, default=str, indent=2), encoding="utf-8")
+        temporary = self.runtime_file.with_suffix(f"{self.runtime_file.suffix}.tmp")
+        temporary.write_text(json.dumps(payload, default=str, indent=2), encoding="utf-8")
+        temporary.replace(self.runtime_file)
 
     async def publish_event(self, event: Event) -> list[RenderResult]:
         self.trace.append(f"event.received type={event.type} source={event.source}")

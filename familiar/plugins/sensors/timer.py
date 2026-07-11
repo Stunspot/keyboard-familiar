@@ -28,4 +28,6 @@ class TimerSensor:
     async def _loop(self) -> None:
         while self._running and self._ctx:
             await asyncio.sleep(self.every_seconds)
-            await self._ctx.app.publish_event(make_event("timer.tick", source="timer", payload={"every_seconds": self.every_seconds}))
+            await self._ctx.app.publish_event(
+                make_event("timer.tick", source="timer", payload={"every_seconds": self.every_seconds})
+            )

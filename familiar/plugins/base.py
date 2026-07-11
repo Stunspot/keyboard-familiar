@@ -1,9 +1,20 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Protocol
+from typing import TYPE_CHECKING, Protocol
 
-from familiar.core.models import BrainResult, Directive, Event, PluginManifest, RenderResult, StateSnapshot, SurfaceCapabilities
+from familiar.core.models import (
+    BrainResult,
+    Directive,
+    Event,
+    PluginManifest,
+    RenderResult,
+    StateSnapshot,
+    SurfaceCapabilities,
+)
+
+if TYPE_CHECKING:
+    from familiar.app import FamiliarApp
 
 
 @dataclass(slots=True)

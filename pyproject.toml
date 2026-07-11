@@ -5,17 +5,22 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "keyboard-familiar"
 version = "0.1.0"
-description = "Keyboard Familiar Harness modular runtime"
+description = "Show NVIDIA VRAM status and alerts on SteelSeries OLED devices"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
-  "pydantic>=2.7",
+  "nvidia-ml-py>=12.0",
   "typer>=0.12",
   "pyyaml>=6.0",
 ]
 
 [project.optional-dependencies]
-dev = ["pytest>=8.0", "pytest-asyncio>=0.23"]
+dev = [
+  "build>=1.2",
+  "pytest>=8.0",
+  "pytest-asyncio>=0.23",
+  "ruff>=0.11",
+]
 
 [project.scripts]
 familiar = "familiar.cli:app"
@@ -24,3 +29,14 @@ familiar = "familiar.cli:app"
 include = ["familiar*"]
 exclude = ["config*"]
 namespaces = false
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 110
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B"]
+ignore = ["E501"]

@@ -4,7 +4,9 @@ from familiar.core.models import BrainResult, DirectiveProposal, Event, PluginMa
 
 
 class RulesBasicBrain:
-    manifest = PluginManifest(name="rules_basic", version="0.1.0", plugin_type="brain", consumes=["*"], emits=["display.*"])
+    manifest = PluginManifest(
+        name="rules_basic", version="0.1.0", plugin_type="brain", consumes=["*"], emits=["display.*"]
+    )
 
     async def start(self, ctx) -> None:
         self._ctx = ctx

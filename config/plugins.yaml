@@ -17,3 +17,5 @@ plugins:
   steelseries_oled:
     enabled: true
     target: primary_surface
+    mode: gamesense
+    timeout_seconds: 2.0

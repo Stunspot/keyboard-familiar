@@ -47,12 +47,12 @@ class GpuVramSensor:
 
     async def _loop(self) -> None:
         while self._running and self._ctx:
-            metrics = await self._sample()
+            metrics = await self.sample()
             if metrics is not None:
                 await self._maybe_emit(metrics)
             await asyncio.sleep(self.every_seconds)
 
-    async def _sample(self) -> dict[str, Any] | None:
+    async def sample(self) -> dict[str, Any] | None:
         metrics = await asyncio.to_thread(self._sample_nvml)
         if metrics is not None:
             return metrics
@@ -78,7 +78,9 @@ class GpuVramSensor:
         except Exception:
             return None
 
-        return self._metrics_from_bytes(int(info.used), int(info.total), source="nvml", gpu_index=self.gpu_index)
+        return self._metrics_from_bytes(
+            int(info.used), int(info.total), source="nvml", gpu_index=self.gpu_index
+        )
 
     def _shutdown_nvml(self) -> None:
         if not self._nvml_initialized:
@@ -104,6 +106,7 @@ class GpuVramSensor:
                 capture_output=True,
                 text=True,
                 check=True,
+                timeout=2.0,
             )
             line = proc.stdout.strip().splitlines()[0]
             used_mib, total_mib = [int(part.strip()) for part in line.split(",", maxsplit=1)]
@@ -112,7 +115,9 @@ class GpuVramSensor:
 
         used_bytes = used_mib * 1024 * 1024
         total_bytes = total_mib * 1024 * 1024
-        return self._metrics_from_bytes(used_bytes, total_bytes, source="nvidia-smi", gpu_index=self.gpu_index)
+        return self._metrics_from_bytes(
+            used_bytes, total_bytes, source="nvidia-smi", gpu_index=self.gpu_index
+        )
 
     @staticmethod
     def _metrics_from_bytes(used_bytes: int, total_bytes: int, source: str, gpu_index: int) -> dict[str, Any]:
@@ -160,4 +165,3 @@ class GpuVramSensor:
         }
         await self._ctx.app.publish_event(make_event("gpu.vram.changed", source="gpu_vram", payload=payload))
         self._last_emitted_percent = percent_used
-

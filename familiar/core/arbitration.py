@@ -53,7 +53,9 @@ class Arbitrator:
 
             directive = Directive.from_proposal(winner, surface, scene)
             accepted.append(directive)
-            self.scene_manager.acquire(surface=surface, scene=scene, owner=str(winner.id), ttl_ms=winner.ttl_ms)
+            self.scene_manager.acquire(
+                surface=surface, scene=scene, owner=str(winner.id), ttl_ms=winner.ttl_ms
+            )
             if winner.cooldown_key:
                 self._cooldowns[winner.cooldown_key] = now + self.dedupe_window
 

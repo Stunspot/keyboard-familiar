@@ -4,8 +4,12 @@ from familiar.core.models import Directive, PluginManifest, RenderResult, Surfac
 
 
 class ConsoleDebugSurface:
-    manifest = PluginManifest(name="console_debug", version="0.1.0", plugin_type="surface", consumes=["display.*"])
-    capabilities = SurfaceCapabilities(surface="console_debug", supports={"display.text", "display.card", "log.entry"})
+    manifest = PluginManifest(
+        name="console_debug", version="0.1.0", plugin_type="surface", consumes=["display.*"]
+    )
+    capabilities = SurfaceCapabilities(
+        surface="console_debug", supports={"display.text", "display.card", "log.entry"}
+    )
 
     def __init__(self) -> None:
         self.rendered: list[Directive] = []
