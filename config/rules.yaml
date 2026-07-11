@@ -1,3 +1,5 @@
+# Architecture reference retained for compatibility. Runtime rules live in
+# familiar/plugins/brains/rules_basic.py.
 rules:
   - name: build_failed_alert
     when:

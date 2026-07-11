@@ -31,6 +31,12 @@ jobs:
       - name: CLI smoke tests
         run: |
           python -m familiar.cli --help
+          python -m familiar.cli setup --destination .familiar/user-config
+          python -m familiar.cli preview --runtime-file .familiar/ci.json
           python -m familiar.cli doctor --simulate
-          python -m familiar.cli trigger test.ping --message "CI smoke" --simulate --runtime-file .familiar/ci.json
+          python -m familiar.cli show "CI glance" --simulate --runtime-file .familiar/ci.json
+          python -m familiar.cli show "CI alert" --alert --simulate --runtime-file .familiar/ci.json
+          python -m familiar.cli focus start "CI focus" --minutes 5 --simulate --runtime-file .familiar/ci.json
+          python -m familiar.cli focus status --runtime-file .familiar/ci.json
+          python -m familiar.cli focus stop --simulate --runtime-file .familiar/ci.json
           python -m familiar.cli render dry-run --runtime-file .familiar/ci.json
