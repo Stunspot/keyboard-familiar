@@ -1,47 +1,274 @@
 Metadata-Version: 2.4
 Name: keyboard-familiar
 Version: 0.1.0
-Summary: Keyboard Familiar Harness modular runtime
+Summary: A quiet glance deck and alert layer for SteelSeries keyboards
 Requires-Python: >=3.12
 Description-Content-Type: text/markdown
 License-File: LICENSE
-Requires-Dist: pydantic>=2.7
+Requires-Dist: nvidia-ml-py>=12.0
+Requires-Dist: psutil>=6.0
+Requires-Dist: tzdata>=2025.2; platform_system == "Windows"
 Requires-Dist: typer>=0.12
 Requires-Dist: pyyaml>=6.0
 Provides-Extra: dev
+Requires-Dist: build>=1.2; extra == "dev"
 Requires-Dist: pytest>=8.0; extra == "dev"
 Requires-Dist: pytest-asyncio>=0.23; extra == "dev"
+Requires-Dist: ruff>=0.11; extra == "dev"
 Dynamic: license-file
 
-# Keyboard Familiar Harness (v1 skeleton)
+# Keyboard Familiar
 
-A debug-first modular monolith for event -> state -> decision -> directive -> surface pipelines.
+Keyboard Familiar turns a SteelSeries keyboard into a quiet glance deck at the edge of your attention.
+Clock and system-pulse cards rotate on a supported screen, an optional focus countdown joins when you need
+it, and important events preempt the deck. Alerts can also flash the function-key zone on supported
+SteelSeries keyboards, so useful signals do not require an OLED.
 
-## Quickstart
+The product stays deliberately out of the way. Regular cards never alter keyboard lighting. Missing NVIDIA
+telemetry removes one source instead of stopping the deck. A local simulator makes every interaction safe
+to explore before SteelSeries hardware is involved.
 
-```bash
-pip install -e .[dev]
-familiar trigger test.ping --source manual --message "hello"
-familiar state show
-familiar trace tail --lines 20
+## What it feels like
+
+With the default configuration, a screen rotates every 15 seconds:
+
+```text
+NOW
+Sat 10:42 AM
+
+SYSTEM PULSE
+CPU 18% · RAM 62%
+
+FOCUS · 21m
+Write launch note
 ```
 
-## Runtime mode
+The focus card appears only while a session is active. A completed focus session or a VRAM threshold alert
+preempts the rotation. If `function_key_lighting` is configured, that alert also flashes the function keys
+in the chosen color. Commands and scripts can place their own quiet cards or alerts with `familiar show`.
 
-`familiar run` starts a long-running loop and keeps the harness process alive until `Ctrl+C`.
+## Requirements
 
-For quick terminal proof without running a daemon, `trigger` persists state/trace to
-`.familiar/runtime.json`, and `state show` / `trace tail` read from the same file.
+- Windows 10 or 11
+- Python 3.12 or newer
+- [SteelSeries GG](https://steelseries.com/gg) with Engine running
+- At least one configured hardware capability:
+  - a GameSense-compatible screen for the glance deck; or
+  - a supported SteelSeries keyboard function-key zone for alerts
+- An NVIDIA GPU is optional. When available, VRAM telemetry uses `nvidia-ml-py` with `nvidia-smi` fallback.
 
-```bash
+The adapter follows SteelSeries' official [GameSense event API](https://github.com/SteelSeries/gamesense-sdk/blob/master/doc/api/sending-game-events.md),
+[screen handler schema](https://github.com/SteelSeries/gamesense-sdk/blob/master/doc/api/json-handlers-screen.md),
+and [color handler schema](https://github.com/SteelSeries/gamesense-sdk/blob/master/doc/api/json-handlers-color.md).
+
+## Install and reach first success
+
+Open PowerShell in the repository root:
+
+```powershell
+py -3.12 -m venv .venv
+Set-ExecutionPolicy -Scope Process Bypass
+.\.venv\Scripts\Activate.ps1
+python -m pip install --upgrade pip
+python -m pip install -e ".[dev]"
+
+familiar setup
+familiar preview
+familiar doctor --simulate
+familiar render dry-run
+```
+
+`setup` copies the repository configuration to `%APPDATA%\Keyboard Familiar` and uses
+`%LOCALAPPDATA%\Keyboard Familiar` for runtime state. After that, commands work from any directory. A
+repository-local `config` directory still takes precedence for development; `FAMILIAR_CONFIG_DIR` selects
+another location explicitly.
+
+The next three commands teach and validate the complete product without contacting hardware. Then start
+SteelSeries GG and verify the configured real capabilities:
+
+```powershell
+familiar doctor
+familiar show "Hardware OK" --title FAMILIAR
+familiar show "Alert path" --title CHECK --alert
+```
+
+Observe `Hardware OK` on the physical screen. If `function_key_lighting` is configured, observe the alert
+color on the function keys for `Alert path`. Alert lighting uses a separate, heartbeat-free GameSense
+channel so Engine releases the function keys back to their normal lighting after its idle timeout.
+GameSense reports whether Engine accepted the handlers, but it
+does not enumerate matching physical devices or acknowledge per-device rendering; observation is the final
+hardware check.
+
+Start ordinary operation:
+
+```powershell
 familiar run
-familiar trigger test.ping --source manual
-familiar state show
-familiar trace tail --lines 20
 ```
 
+Leave it running in a terminal or launch it with your preferred Windows startup mechanism. `Ctrl+C` stops
+it cleanly.
 
-## GPU VRAM sensor
+## Everyday commands
 
-Enable `gpu_vram` in `config/plugins.yaml` to poll NVIDIA VRAM usage via NVML (`pynvml`) with `nvidia-smi` as fallback.
-The sensor emits `gpu.vram.changed` events when usage moves meaningfully or crosses the configured threshold, and `rules_basic` maps those to GLANCE/ALERT directives while persisting values under `domains.gpu.vram`.
+```powershell
+# See what will rotate, without touching hardware
+familiar preview
+
+# Start a countdown; omit --minutes to use deck.yaml's default
+familiar focus start "Review pull request" --minutes 25
+familiar focus status
+familiar focus stop
+
+# Put a quiet card on the screen
+familiar show "Build passed" --title SHIP
+
+# Preempt the deck and signal configured function-key lighting
+familiar show "Deploy needs attention" --title DEPLOY --alert
+
+# Return later without relearning the current state
+familiar status
+
+# Inspect recent decisions and failures
+familiar trace tail --lines 50
+```
+
+`show` is intentionally script-friendly. For example, a build script can run `familiar show "Tests failed"
+--title BUILD --alert` without learning the internal event model. The low-level `trigger` command remains
+available but hidden for compatibility and development.
+
+## Configure the deck to taste
+
+`config/deck.yaml` is the main user-facing customization surface:
+
+```yaml
+deck:
+  interval_seconds: 15
+  cards:
+    - source: clock
+      title: NOW
+      time_format: "%a %I:%M %p"
+    - source: system
+      title: SYSTEM PULSE
+    - source: focus
+      title: FOCUS
+
+focus:
+  default_minutes: 25
+```
+
+Cards appear in list order. Disable a card with `enabled: false`; `focus` automatically disappears when no
+session is active. Supported built-in sources are `clock`, `system`, and `focus`. Titles are limited to 20
+characters because small hardware screens reward concise language. `familiar preview` validates changes
+and shows the resulting rotation immediately.
+
+The clock uses `runtime.timezone` from `config/app.yaml`. Use `local` for the Windows system timezone or an
+IANA name such as `America/Chicago` when a fixed timezone is intentional.
+
+## Configure SteelSeries capabilities
+
+`config/plugins.yaml` describes the hardware behavior honestly:
+
+```yaml
+plugins:
+  glance_deck:
+    enabled: true
+  gpu_vram:
+    enabled: true
+    every_seconds: 3
+    gpu_index: 0
+    change_threshold_pct: 2.0
+    alert_threshold_pct: 75.0
+  steelseries:
+    enabled: true
+    mode: gamesense
+    capabilities: [screen, function_key_lighting]
+    alert_color: [255, 64, 32]
+    timeout_seconds: 2.0
+```
+
+Supported capabilities are:
+
+- `screen` — enables quiet cards and alert text on generic GameSense screened devices.
+- `function_key_lighting` — flashes the keyboard function-key zone for alert events only.
+
+For an alert-only keyboard without a screen, set `capabilities: [function_key_lighting]`. Quiet `show`
+commands then fail with an explanation instead of pretending something was displayed; `show --alert`
+continues to work. Set `mode: simulate` only for an explicitly simulated configuration. Command-level
+`--simulate` overrides production mode for safe experiments.
+
+The previous `steelseries_oled` block remains accepted as a compatibility alias and implies `screen` only.
+
+## Diagnosis and recovery
+
+`familiar doctor` treats the product as a set of cooperating capabilities:
+
+- validates every live configuration value;
+- samples all glance providers while isolating a broken provider from healthy ones;
+- reports optional NVIDIA telemetry as available or degraded;
+- validates focus state and gives the reset command if it is malformed;
+- registers the configured GameSense screen and lighting handlers;
+- states the boundary between accepted Engine handlers and unobservable physical-device delivery.
+
+Common recovery paths:
+
+- **SteelSeries discovery file missing** — start GG, open Engine, wait a few seconds, and rerun `doctor`.
+- **GG restarted or changed ports** — the next card automatically rediscovers Engine. Use `doctor` if it
+  remains unavailable.
+- **No NVIDIA telemetry** — the clock, system pulse, focus, and manual alerts continue. Update the driver
+  or disable `gpu_vram` if the warning is not useful.
+- **Corrupt focus state** — run `familiar focus stop`. Other deck providers remain active meanwhile.
+- **Stale runtime** — `familiar status` calls it out; restart `familiar run` and inspect the trace.
+- **Lighting works but no card appears** — confirm `screen` is configured and the attached device has a
+  GameSense-compatible screen.
+- **Screen works but lighting does not** — confirm `function_key_lighting` is configured and observe an
+  alert, not a regular card.
+
+## Simulator and verification boundary
+
+```powershell
+familiar preview
+familiar show "Quiet check" --simulate
+familiar show "Alert check" --alert --simulate
+familiar focus start "Simulator session" --minutes 5 --simulate
+familiar render dry-run
+familiar doctor --simulate
+```
+
+The simulator proves provider sampling, deck rotation, focus persistence and completion, event policy,
+scene preemption, routing, screen normalization, alert color payloads, console mirroring, runtime state,
+and failure propagation. Protocol tests run the real adapter against a deterministic local HTTP Engine and
+verify metadata, separate glance/alert bindings, screen handlers, function-key color handlers, events,
+keepalive, Engine errors, and endpoint rediscovery.
+
+It cannot prove that a particular model matches SteelSeries' generic handler, that firmware renders it, or
+that the result is visually correct on every screen. Use the two real `show` commands in the installation
+section and observe the physical device.
+
+## Development checks
+
+```powershell
+python -m ruff format --check .
+python -m ruff check .
+python -m compileall -q familiar tests
+python -m pytest -q
+python -m build
+
+familiar preview
+familiar doctor --simulate
+familiar render dry-run
+```
+
+CI runs installation, lint, formatting, compilation, tests, package builds, and product-level simulated
+smoke flows on Windows and Linux.
+
+## Architecture and extension seam
+
+The modular-monolith flow remains visible: providers produce `GlanceCard` values; the deck selects a quiet
+card or pending alert; events update state and become proposals; scene arbitration protects attention; and
+the router sends directives to configured surfaces. `CardProvider` is the narrow source seam. New built-in
+sources need to return a title, body, and optional alert semantics; they automatically participate in deck
+configuration, preview, doctor isolation, simulation, arbitration, persistence, and device rendering.
+
+See [docs/extending.md](docs/extending.md) for the concrete extension path. YAML-defined arbitrary code is
+intentionally not supported. The Python rules and scene policy remain authoritative; `config/rules.yaml`
+and `config/scenes.yaml` are architecture references retained for compatibility.

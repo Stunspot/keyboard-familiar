@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from familiar.core.events import make_event
-from familiar.core.models import PluginManifest
+from familiar.core.models import PluginManifest, RenderResult
 
 
 class ManualTriggerSensor:
@@ -16,7 +16,9 @@ class ManualTriggerSensor:
     async def stop(self) -> None:
         self._ctx = None
 
-    async def trigger(self, event_type: str, source: str = "manual", payload: dict | None = None) -> None:
+    async def trigger(
+        self, event_type: str, source: str = "manual", payload: dict | None = None
+    ) -> list[RenderResult]:
         if self._ctx is None:
             raise RuntimeError("manual trigger sensor not started")
-        await self._ctx.app.publish_event(make_event(event_type, source=source, payload=payload or {}))
+        return await self._ctx.app.publish_event(make_event(event_type, source=source, payload=payload or {}))

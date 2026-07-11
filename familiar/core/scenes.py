@@ -30,10 +30,19 @@ class SceneManager:
     def acquire(self, surface: str, scene: str, owner: str, ttl_ms: int) -> SurfaceOwnership:
         now = datetime.now(timezone.utc)
         expires = now + timedelta(milliseconds=ttl_ms) if ttl_ms > 0 else None
-        ownership = SurfaceOwnership(surface=surface, scene=scene, owner=owner, acquired_at=now, expires_at=expires)
+        ownership = SurfaceOwnership(
+            surface=surface, scene=scene, owner=owner, acquired_at=now, expires_at=expires
+        )
         self._owners[surface] = ownership
         self._dwell_until[surface] = now + timedelta(milliseconds=self._dwell_ms)
         return ownership
 
     def in_dwell(self, surface: str) -> bool:
-        return datetime.now(timezone.utc) < self._dwell_until.get(surface, datetime.min.replace(tzinfo=timezone.utc))
+        return datetime.now(timezone.utc) < self._dwell_until.get(
+            surface, datetime.min.replace(tzinfo=timezone.utc)
+        )
+
+    def clear(self) -> None:
+        """Release transient ownership, primarily for explicit previews and recovery."""
+        self._owners.clear()
+        self._dwell_until.clear()

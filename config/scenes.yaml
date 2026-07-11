@@ -1,3 +1,5 @@
+# Architecture reference retained for compatibility. Runtime scene policy lives
+# in familiar/core/scenes.py; min dwell is configurable in app.yaml.
 scenes:
   GLANCE:
     dwell_ms: 10000

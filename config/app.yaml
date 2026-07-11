@@ -1,6 +1,6 @@
 runtime:
   log_level: INFO
-  timezone: America/Chicago
+  timezone: local
   debug_surface_mirror: true
   quiet_hours:
     enabled: false

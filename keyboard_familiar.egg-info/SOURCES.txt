@@ -10,6 +10,8 @@ familiar/core/arbitration.py
 familiar/core/bus.py
 familiar/core/config.py
 familiar/core/events.py
+familiar/core/focus.py
+familiar/core/glance.py
 familiar/core/models.py
 familiar/core/routing.py
 familiar/core/scenes.py
@@ -20,6 +22,7 @@ familiar/plugins/manager.py
 familiar/plugins/brains/__init__.py
 familiar/plugins/brains/rules_basic.py
 familiar/plugins/sensors/__init__.py
+familiar/plugins/sensors/glance_deck.py
 familiar/plugins/sensors/gpu_vram.py
 familiar/plugins/sensors/manual_trigger.py
 familiar/plugins/sensors/timer.py
